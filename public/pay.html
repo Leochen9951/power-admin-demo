@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>电费缴纳 · 智电云</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+<style>
+  :root {
+    --ink: #0d1a15; --ink-2: #34453d; --muted: #78877f;
+    --line: #e4eae6; --primary: #0d7a5b; --primary-600: #0a654b;
+    --primary-50: #e7f4ef; --danger: #cf3f3f; --ok: #1c925f; --accent: #dd7d0a;
+    --surface: #fff; --bg: #f2f6f4;
+    --font: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    font-family: var(--font); background: var(--bg); color: var(--ink);
+    font-size: 14px; line-height: 1.6; min-height: 100vh; -webkit-font-smoothing: antialiased;
+    background-image: radial-gradient(900px 420px at 50% -10%, #dff0e7, transparent 70%);
+    padding-bottom: 90px;
+  }
+  a { color: var(--primary); text-decoration: none; }
+  .wrap { max-width: 560px; margin: 0 auto; padding: 0 18px; }
+  .topbar { display: flex; align-items: center; justify-content: space-between; padding: 22px 0 12px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 16px; letter-spacing: .3px; }
+  .logo { width: 32px; height: 32px; border-radius: 9px; background: linear-gradient(145deg, #1fbd8b, #0d7a5b); color: #fff; display: grid; place-items: center; font-size: 17px; box-shadow: 0 6px 16px -6px rgba(31,189,139,.9); }
+  .top-link { font-size: 12.5px; color: var(--muted); }
+  h1 { font-size: 26px; letter-spacing: -.6px; margin: 22px 0 6px; }
+  .lead { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+  .card { background: var(--surface); border-radius: 20px; box-shadow: 0 2px 4px rgba(13,40,30,.03), 0 20px 50px -30px rgba(13,40,30,.35); border: 1px solid rgba(228,234,230,.7); overflow: hidden; }
+  .pad { padding: 22px; }
+  .query { display: flex; gap: 9px; }
+  .query input { flex: 1; height: 48px; border-radius: 12px; border: 1px solid var(--line); padding: 0 14px; font-size: 16px; letter-spacing: 1px; outline: none; background: #fbfcfb; font-family: inherit; }
+  .query input:focus { border-color: var(--primary); box-shadow: 0 0 0 4px var(--primary-50); background: #fff; }
+  .btn { height: 48px; padding: 0 20px; border-radius: 12px; border: none; background: var(--primary); color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; font-family: inherit; white-space: nowrap; }
+  .btn:hover { background: var(--primary-600); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .btn.block { width: 100%; height: 50px; }
+  .btn.ghost { background: #fff; color: var(--ink-2); border: 1px solid var(--line); }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 12px; }
+  .demo { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+  .demo button { font-size: 11.5px; border: 1px dashed #cfdcd4; background: #fbfdfc; color: var(--ink-2); padding: 5px 10px; border-radius: 20px; cursor: pointer; font-family: inherit; }
+  .demo button:hover { border-color: var(--primary); color: var(--primary); }
+  .err { background: #fdf0f0; color: #9c2b2b; padding: 10px 14px; border-radius: 10px; font-size: 12.5px; margin-top: 14px; }
+
+  .acc { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; padding: 20px 22px; background: linear-gradient(120deg, #0d3b2e, #0d7a5b 120%); color: #eaf7f1; }
+  .acc .who b { font-size: 17px; letter-spacing: .2px; }
+  .acc .who div { font-size: 12px; color: #a9d6c4; margin-top: 3px; }
+  .acc .no { font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; color: #a9d6c4; }
+  .acc .due { text-align: right; }
+  .acc .due span { font-size: 11.5px; color: #a9d6c4; display: block; }
+  .acc .due b { font-size: 24px; letter-spacing: -.5px; }
+
+  .bill { display: flex; align-items: center; gap: 12px; padding: 14px 22px; border-bottom: 1px solid #f1f4f2; cursor: pointer; }
+  .bill:last-child { border-bottom: none; }
+  .bill:hover { background: #fafcfb; }
+  .bill input { width: 18px; height: 18px; accent-color: var(--primary); }
+  .bill .per { font-variant-numeric: tabular-nums; }
+  .bill .per b { font-size: 14.5px; }
+  .bill .per span { display: block; font-size: 11.5px; color: var(--muted); }
+  .bill .amt { margin-left: auto; text-align: right; }
+  .bill .amt b { font-size: 15px; font-variant-numeric: tabular-nums; }
+  .bill .amt span { display: block; font-size: 11px; color: var(--muted); }
+  .bill.paid { opacity: .52; }
+  .pill { display: inline-block; padding: 1px 7px; border-radius: 20px; font-size: 10.5px; background: #eef2f0; color: var(--ink-2); }
+  .pill.danger { background: #fdeeee; color: #b93636; }
+  .pill.warn { background: #fdf3e2; color: #a86407; }
+  .pill.ok { background: #e7f6ee; color: #0f7a4c; }
+
+  .chan { display: flex; gap: 8px; padding: 4px 22px 18px; }
+  .chan label { flex: 1; text-align: center; border: 1px solid var(--line); border-radius: 11px; padding: 10px; font-size: 13px; cursor: pointer; color: var(--ink-2); }
+  .chan input { display: none; }
+  .chan input:checked + span { color: var(--primary); font-weight: 600; }
+  .chan label:has(input:checked) { border-color: var(--primary); background: var(--primary-50); }
+
+  .paybar { position: fixed; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,.94); backdrop-filter: blur(12px); border-top: 1px solid var(--line); padding: 14px 18px calc(14px + env(safe-area-inset-bottom)); z-index: 10; }
+  .paybar-in { max-width: 560px; margin: 0 auto; display: flex; align-items: center; gap: 14px; }
+  .paybar .sum { flex: 1; }
+  .paybar .sum span { font-size: 11.5px; color: var(--muted); display: block; }
+  .paybar .sum b { font-size: 23px; letter-spacing: -.5px; font-variant-numeric: tabular-nums; }
+
+  .done { text-align: center; padding: 34px 24px; }
+  .done .tick { width: 64px; height: 64px; margin: 0 auto 16px; border-radius: 50%; background: var(--primary-50); color: var(--primary); display: grid; place-items: center; font-size: 30px; }
+  .done h2 { font-size: 20px; letter-spacing: -.3px; margin: 0 0 4px; }
+  .done .muted { color: var(--muted); font-size: 13px; }
+  .receipt { margin: 22px 0; border-top: 1px dashed var(--line); border-bottom: 1px dashed var(--line); padding: 16px 0; }
+  .rline { display: flex; justify-content: space-between; font-size: 13px; padding: 5px 0; }
+  .rline span { color: var(--muted); }
+  .rline b { font-variant-numeric: tabular-nums; }
+
+  .foot { text-align: center; color: #9aa9a1; font-size: 11.5px; padding: 22px 0; }
+  .skeleton { padding: 40px; text-align: center; color: var(--muted); font-size: 13px; }
+  @media (max-width: 480px) {
+    h1 { font-size: 22px; }
+    .pad { padding: 18px; }
+    .acc { padding: 18px; }
+    .chan { padding: 4px 18px 16px; }
+    .bill { padding: 13px 18px; }
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <div class="brand"><span class="logo">⚡</span> 智电云 · 电费缴纳</div>
+      <a class="top-link" href="/">管理后台 →</a>
+    </div>
+
+    <div id="app">
+      <h1>缴纳电费</h1>
+      <p class="lead">输入国家分配的 12 位户号，核对账期后在线支付</p>
+
+      <div class="card">
+        <div class="pad">
+          <form class="query" id="queryForm">
+            <input id="accountNo" inputmode="numeric" maxlength="16" placeholder="请输入户号，如 340102000029" autocomplete="off" />
+            <button class="btn" type="submit" id="queryBtn">查询</button>
+          </form>
+          <div id="queryErr"></div>
+          <div class="hint">户号可在电费通知单、短信或营业厅查询</div>
+          <div class="demo" id="demo"></div>
+        </div>
+      </div>
+      <div id="result"></div>
+    </div>
+    <div class="foot">智电云 · 物联网电表电力管理平台（演示环境，不产生真实扣款）</div>
+  </div>
+
+  <div id="paybar"></div>
+
+<script type="module">
+const $ = (s) => document.querySelector(s);
+const fmtMoney = (n) => Number(n || 0).toFixed(2);
+const fmtPeriod = (p) => p ? `${p.slice(0, 4)} 年 ${Number(p.slice(5, 7))} 月` : '—';
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+let current = null;
+const selected = new Set();
+
+async function api(path, opts = {}) {
+  if (window.__staticApi) return window.__staticApi(path, opts);   // GitHub Pages 静态演示
+  const res = await fetch(path, {
+    headers: { 'Content-Type': 'application/json' }, ...opts,
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || '服务异常');
+  return data;
+}
+
+/* 演示户号 */
+(async () => {
+  try {
+    const { accounts } = await api('/api/public/demo');
+    if (!accounts?.length) return;
+    $('#demo').innerHTML = accounts.map((a) =>
+      `<button data-acc="${a.account_no}">${a.account_no} · 欠 ¥${fmtMoney(a.amount)}</button>`).join('');
+    $('#demo').querySelectorAll('button').forEach((b) => {
+      b.onclick = () => { $('#accountNo').value = b.dataset.acc; lookup(b.dataset.acc); };
+    });
+  } catch { /* ignore */ }
+})();
+
+$('#queryForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  lookup($('#accountNo').value.trim());
+});
+
+async function lookup(accountNo) {
+  if (!accountNo) return;
+  const btn = $('#queryBtn');
+  btn.disabled = true; btn.textContent = '查询中';
+  $('#queryErr').innerHTML = '';
+  try {
+    const data = await api(`/api/public/lookup?accountNo=${encodeURIComponent(accountNo)}`);
+    current = data;
+    selected.clear();
+    data.bills.filter((b) => b.outstanding > 0.005).forEach((b) => selected.add(b.id));
+    renderBills();
+  } catch (err) {
+    $('#queryErr').innerHTML = `<div class="err">${esc(err.message)}</div>`;
+    $('#app').querySelectorAll('.result').forEach((n) => n.remove());
+    $('#paybar').innerHTML = '';
+  } finally {
+    btn.disabled = false; btn.textContent = '查询';
+  }
+}
+
+function renderBills() {
+  const box = document.getElementById('result');
+  box.innerHTML = '';
+  const a = current.account;
+  const payable = current.bills.filter((b) => b.outstanding > 0.005);
+  const total = payable.filter((b) => selected.has(b.id)).reduce((s, b) => s + b.outstanding, 0);
+
+  const html = `
+    <div class="result">
+      <div class="card" style="margin-top:14px">
+        <div class="acc">
+          <div class="who">
+            <b>${esc(a.customerName)}</b>
+            <div>${esc(a.address)}</div>
+            <div class="no">${esc(a.accountNo)} · ${esc(a.areaName || '')}</div>
+          </div>
+          <div class="due">
+            <span>待缴合计</span>
+            <b>¥${fmtMoney(a.outstanding)}</b>
+          </div>
+        </div>
+        ${payable.length ? `
+          <div style="padding:14px 22px 4px;font-size:12px;color:var(--muted)">待缴账期（默认全选）</div>
+          ${payable.map((b) => `
+            <label class="bill ${b.status === 'overdue' ? '' : ''}">
+              <input type="checkbox" data-bill="${b.id}" ${selected.has(b.id) ? 'checked' : ''} />
+              <div class="per"><b>${fmtPeriod(b.period)}</b>
+                <span>${b.usage_kwh} kWh · 到期 ${b.due_date || '—'}</span></div>
+              <div class="amt"><b>¥${fmtMoney(b.outstanding)}</b>
+                <span>${b.status === 'overdue' ? '<span class="pill danger">已逾期</span>' : b.status === 'partial' ? '<span class="pill warn">部分已缴</span>' : '<span class="pill">待缴</span>'}</span></div>
+            </label>`).join('')}
+        ` : `<div style="padding:34px;text-align:center;color:var(--muted)">
+              <div style="font-size:26px;margin-bottom:6px">✓</div>当前没有待缴电费</div>`}
+        ${payable.length ? `
+          <div style="padding:14px 22px 0;font-size:12px;color:var(--muted)">支付方式</div>
+          <div class="chan">
+            <label><input type="radio" name="ch" value="wechat" checked /><span>微信支付</span></label>
+            <label><input type="radio" name="ch" value="alipay" /><span>支付宝</span></label>
+            <label><input type="radio" name="ch" value="mock" /><span>模拟网关</span></label>
+          </div>` : ''}
+      </div>
+    </div>`;
+
+  box.innerHTML = html;
+
+  document.querySelectorAll('[data-bill]').forEach((cb) => {
+    cb.onchange = () => {
+      const id = Number(cb.dataset.bill);
+      if (cb.checked) selected.add(id); else selected.delete(id);
+      updateBar();
+    };
+  });
+  updateBar();
+}
+
+function updateBar() {
+  const bar = $('#paybar');
+  if (!current) { bar.innerHTML = ''; return; }
+  const payable = current.bills.filter((b) => b.outstanding > 0.005 && selected.has(b.id));
+  const total = payable.reduce((s, b) => s + b.outstanding, 0);
+  if (!current.bills.some((b) => b.outstanding > 0.005)) { bar.innerHTML = ''; return; }
+  bar.innerHTML = `
+    <div class="paybar"><div class="paybar-in">
+      <div class="sum"><span>已选 ${payable.length} 期</span><b>¥${fmtMoney(total)}</b></div>
+      <button class="btn" id="payBtn" ${payable.length ? '' : 'disabled'}>立即支付</button>
+    </div></div>`;
+  const btn = $('#payBtn');
+  if (btn) btn.onclick = pay;
+}
+
+async function pay() {
+  const channel = document.querySelector('input[name="ch"]:checked')?.value || 'wechat';
+  const ids = [...selected];
+  const btn = $('#payBtn');
+  btn.disabled = true; btn.textContent = '支付中…';
+  try {
+    const res = await api('/api/public/pay', {
+      method: 'POST',
+      body: { accountNo: current.account.accountNo, billIds: ids, channel, idempotencyKey: `web-${Date.now()}` },
+    });
+    renderSuccess(res);
+  } catch (err) {
+    btn.disabled = false; btn.textContent = '立即支付';
+    document.getElementById('result').innerHTML = `<div class="err" style="margin-top:14px">${esc(err.message)}</div>`;
+  }
+}
+
+function renderSuccess(res) {
+  const box = document.getElementById('result');
+  $('#paybar').innerHTML = '';
+  $('#app').querySelector('h1').textContent = '缴费成功';
+  $('#app').querySelector('.lead').textContent = '请保存凭证，账单状态已实时更新';
+  $('#app').querySelectorAll('.card').forEach((c) => c.remove());
+  const periods = res.bills.map((b) => { const p = b.billNo.slice(1, 7); return `${p.slice(0, 4)}年${Number(p.slice(4, 6))}月`; }).join('、');
+  box.innerHTML = `
+    <div class="card result" style="margin-top:6px">
+      <div class="done">
+        <div class="tick">✓</div>
+        <h2>已成功缴纳 ¥${fmtMoney(res.amount)}</h2>
+        <div class="muted">${esc(res.channel)} · ${esc(res.paidAt)}</div>
+        <div class="receipt">
+          <div class="rline"><span>户号</span><b>${esc(res.accountNo)}</b></div>
+          <div class="rline"><span>支付单号</span><b style="font-family:ui-monospace,Menlo,monospace;font-size:12px">${esc(res.payNo)}</b></div>
+          <div class="rline"><span>缴费账期</span><b>${periods}</b></div>
+          <div class="rline"><span>缴费笔数</span><b>${res.bills.length} 期</b></div>
+        </div>
+        <button class="btn block" id="again">完成</button>
+        <div class="hint" style="text-align:center;margin-top:12px">演示环境，未发生真实扣款</div>
+      </div>
+    </div>`;
+  $('#again').onclick = () => location.reload();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+</script>
+</body>
+</html>

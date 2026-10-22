@@ -1,0 +1,15 @@
+# 放到服务器 /etc/caddy/Caddyfile，与 docker-compose 同机使用
+# 1) 生成密码哈希：caddy hash-password --plaintext 'your-demo-pass'
+# 2) 把下面的 <HASH> 替换掉，域名解析到服务器 IP
+# 3) systemctl reload caddy
+
+demo.example.com {
+	encode zstd gzip
+
+	# 演示站建议加一层访问口令，避免被随意重置数据 / 爬取
+	basic_auth {
+		demo <HASH>
+	}
+
+	reverse_proxy 127.0.0.1:4399
+}

@@ -1,0 +1,22 @@
+# 海外/国内轻量服务器通用：docker compose up -d --build
+services:
+  power:
+    build: .
+    image: power-admin:1.0
+    container_name: power-admin
+    restart: unless-stopped
+    ports:
+      - "4399:4399"
+    volumes:
+      - power-data:/app/data      # 命名卷，避免宿主机目录权限问题
+    environment:
+      TZ: Asia/Shanghai
+      # 线上演示：每 6 小时把读数补齐到昨天，避免放几天后设备全部显示离线
+      DEMO_FRESH: "1"
+      # ADMIN_PASSWORD: "改成你的密码"   # 仅首次生成数据时生效
+    # 若想直接映射宿主机目录（便于直接拷贝 app.db 备份），改用：
+    #   - ./data:/app/data
+    # 并确保容器内 node 用户（uid 1000）对该目录可写
+
+volumes:
+  power-data:
