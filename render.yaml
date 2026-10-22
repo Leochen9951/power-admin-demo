@@ -9,7 +9,8 @@ services:
     runtime: docker
     dockerfilePath: ./Dockerfile
     plan: free
-    region: singapore
+    # 免费实例可选区域有限，先不写死；付费后想换新加坡需重建服务
+    # region: singapore
     branch: main
     autoDeploy: true
     healthCheckPath: /api/healthz
