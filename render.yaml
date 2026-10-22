@@ -1,16 +1,14 @@
-# Render 蓝图：把本仓库一键部署成完整在线演示
+# Render 蓝图：一键部署完整版演示
 # 用法：Render 控制台 → New → Blueprint → 选择本仓库
 #
-# 说明：
-# - 必须挂持久磁盘，否则每次发布都会重置演示数据
-# - 免费实例不支持磁盘，且 15 分钟无访问会休眠；长期演示建议 starter（$7/月）
-# - ADMIN_PASSWORD 只在该库首次生成数据时生效，之后改密码需要重开数据卷
+# 默认 free：不用绑卡，15 分钟无访问会休眠，容器磁盘是临时的（重启后演示数据重置）。
+# 想要「常驻 + 数据不丢」：把 plan 改成 starter（约 $7/月），取消下面 disk 段的注释。
 services:
   - type: web
     name: power-admin-demo
     runtime: docker
     dockerfilePath: ./Dockerfile
-    plan: starter
+    plan: free
     region: singapore
     branch: main
     autoDeploy: true
@@ -22,7 +20,7 @@ services:
         value: "1"
       - key: ADMIN_PASSWORD
         sync: false          # 部署时在控制台填写，不要提交到仓库
-    disk:
-      name: power-data
-      mountPath: /app/data
-      sizeGB: 1
+    # disk:
+    #   name: power-data
+    #   mountPath: /app/data
+    #   sizeGB: 1

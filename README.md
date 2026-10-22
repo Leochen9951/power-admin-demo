@@ -284,6 +284,9 @@ cloudflared tunnel --url http://localhost:4399   # 或 ngrok http 4399
 
 ## 两套在线演示（可同时存在）
 
+- 静态版（已上线）：<https://leochen9951.github.io/power-admin-demo/>
+- 完整版：按下面「完整版：Render」部署后获得地址
+
 | | 静态版（GitHub Pages） | 完整版（Render） |
 |---|---|---|
 | 地址 | `https://<user>.github.io/<repo>/` | `https://power-admin-demo.onrender.com` |
@@ -325,5 +328,5 @@ cd static-site && python3 -m http.server 4402   # 本地预览 http://localhost:
 蓝图里已经配置：Docker 构建、`/app/data` 持久磁盘、健康检查 `/api/healthz`、
 `DEMO_FRESH=1` 每天自动补数据（让设备不会一直显示离线）。
 
-> 想先用免费实例试：把 `render.yaml` 里的 `plan: starter` 改成 `free`，并删掉 `disk` 段。
-> 代价是每次重启/发布数据重置，且 15 分钟无访问会休眠。
+> 默认是 `plan: free`：不用绑卡，但 15 分钟无访问会休眠、容器磁盘是临时的（重启后数据重置）。
+> 想要「常驻 + 数据不丢」：把 `plan` 改成 `starter`（约 $7/月），并取消 `disk` 段的注释。
