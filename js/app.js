@@ -8,6 +8,7 @@ import bills from './pages/bills.js';
 import payments from './pages/payments.js';
 import alerts from './pages/alerts.js';
 import system from './pages/system.js';
+import changelog from './pages/changelog.js';
 
 const ROUTES = {
   dashboard: { title: '运营概览', sub: '用电、费用与设备运行的整体视图', render: dashboard, group: '运营监控' },
@@ -19,18 +20,20 @@ const ROUTES = {
   bills: { title: '账单管理', sub: '按月出账、电费明细与欠费', render: bills, group: '计费与收费' },
   payments: { title: '缴费记录', sub: '支付流水与账单核销', render: payments, group: '计费与收费' },
   system: { title: '系统与模拟', sub: '演示数据、设备模拟与账期推进', render: system, group: '系统' },
+  changelog: { title: '更新日志', sub: '版本变更记录与历史版本入口', render: changelog, group: '系统' },
 };
 
 const NAV = [
   { group: '运营监控', items: ['dashboard', 'alerts'] },
   { group: '用户与资产', items: ['accounts', 'devices', 'replacements'] },
   { group: '计费与收费', items: ['readings', 'bills', 'payments'] },
-  { group: '系统', items: ['system'] },
+  { group: '系统', items: ['system', 'changelog'] },
 ];
 
 const ICONS = {
   dashboard: 'dash', alerts: 'alert', accounts: 'users', devices: 'meter',
   replacements: 'swap', readings: 'list', bills: 'bill', payments: 'pay', system: 'gear',
+  changelog: 'clock',
 };
 
 const badges = { alerts: 0, replacements: 0 };
@@ -188,7 +191,8 @@ function mountStaticBanner() {
   if (document.getElementById('staticBanner')) return;
   const el = document.createElement('div');
   el.id = 'staticBanner';
-  el.innerHTML = '<b>静态演示版</b> · 数据为导出快照，缴费在浏览器内模拟，刷新后还原。完整功能请使用在线版。';
+  el.innerHTML = '<b>静态演示版</b> · 数据为导出快照，缴费在浏览器内模拟，刷新后还原。'
+    + ' <a href="./v1/" style="color:#5be0b0;text-decoration:underline">查看 v1.0 归档</a>';
   document.body.appendChild(el);
   document.body.classList.add('has-static-banner');
 }
