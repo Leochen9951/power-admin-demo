@@ -90,6 +90,11 @@ CREATE TABLE IF NOT EXISTS metering_points (
   point_no TEXT UNIQUE NOT NULL,
   name TEXT,
   location TEXT,
+  property_type TEXT,
+  tariff_id INTEGER,
+  is_billing INTEGER NOT NULL DEFAULT 1,
+  sort_no INTEGER NOT NULL DEFAULT 1,
+  remark TEXT,
   status TEXT NOT NULL DEFAULT 'active',
   created_at TEXT NOT NULL
 );
@@ -274,6 +279,17 @@ CREATE TABLE IF NOT EXISTS settings (
 `;
 
 db.exec(SCHEMA);
+
+/* 轻量迁移：给旧库补上「一户多表」需要的字段 */
+function ensureColumn(table, column, ddl) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all();
+  if (!cols.some((c) => c.name === column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
+}
+ensureColumn('metering_points', 'property_type', 'property_type TEXT');
+ensureColumn('metering_points', 'tariff_id', 'tariff_id INTEGER');
+ensureColumn('metering_points', 'is_billing', 'is_billing INTEGER NOT NULL DEFAULT 1');
+ensureColumn('metering_points', 'sort_no', 'sort_no INTEGER NOT NULL DEFAULT 1');
+ensureColumn('metering_points', 'remark', 'remark TEXT');
 
 export function all(sql, ...params) {
   return db.prepare(sql).all(...params);

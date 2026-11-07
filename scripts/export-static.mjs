@@ -99,12 +99,14 @@ const replacements = all(`
 
 const readings = all(`
   SELECT r.id, r.point_id, r.segment_id, r.device_id, r.read_at, r.reading, r.source,
-         r.quality, r.note, a.account_no, a.customer_name, d.asset_no, s.seq AS seg_seq
+         r.quality, r.note, a.account_no, a.customer_name, d.asset_no, s.seq AS seg_seq,
+         mp.name AS point_name, mp.point_no
   FROM readings r
   JOIN metering_points p ON p.id=r.point_id
   JOIN accounts a ON a.id=p.account_id
   JOIN devices d ON d.id=r.device_id
   LEFT JOIN segments s ON s.id=r.segment_id
+  LEFT JOIN metering_points mp ON mp.id=r.point_id
   ORDER BY r.read_at DESC, r.id DESC
   LIMIT ${READINGS_LIMIT}`);
 
@@ -123,6 +125,22 @@ const usage = {};
 for (const u of usageRows) {
   usage[u.account_id] = usage[u.account_id] || {};
   usage[u.account_id][u.period] = Math.round(u.kwh * 10) / 10;
+}
+
+/* 计量点 × 账期 用电量（一户多表：每块表单独的用电量） */
+const pointUsageRows = all(`
+  WITH r AS (
+    SELECT point_id, read_at, reading,
+           LAG(reading) OVER (PARTITION BY point_id ORDER BY read_at, id) prev,
+           LAG(read_at) OVER (PARTITION BY point_id ORDER BY read_at, id) prev_at
+    FROM readings WHERE superseded_by IS NULL AND quality <> 'suspect')
+  SELECT r.point_id, substr(r.read_at,1,7) period, SUM(r.reading - r.prev) kwh
+  FROM r WHERE r.prev IS NOT NULL AND r.prev_at IS NOT NULL
+  GROUP BY r.point_id, period`);
+const pointUsage = {};
+for (const u of pointUsageRows) {
+  pointUsage[u.point_id] = pointUsage[u.point_id] || {};
+  pointUsage[u.point_id][u.period] = Math.round(u.kwh * 10) / 10;
 }
 
 /* 断档：与 api.js 同口径 */
@@ -194,7 +212,7 @@ const snapshot = {
     asOf: get('SELECT MAX(read_at) m FROM readings')?.m || null,
   },
   accounts, points, segments, devices, bills, payments, allocations,
-  adjustments, replacements, readings, usage,
+  adjustments, replacements, readings, usage, pointUsage,
   alerts, gaps: { current: gapCurrent, history: gapHistory },
   faultDevices, periodRuns,
 };

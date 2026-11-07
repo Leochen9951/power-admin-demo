@@ -120,7 +120,9 @@ async function openCreate(ctx) {
       ${field({ label: '倍率', name: 'ratio', type: 'number', value: '1', hint: 'CT 变比，实际电量 = 表码增量 × 倍率' })}
       ${field({ label: '通信模组 IMEI', name: 'imei' })}
       ${field({ label: 'SIM 卡号', name: 'simNo' })}
-      ${field({ label: '绑定户号（可选）', name: 'accountNo', placeholder: '留空则进库存', hint: '该户必须尚未安装电表' })}
+      ${field({ label: '绑定户号（可选）', name: 'accountNo', placeholder: '留空则进库存', hint: '默认装入该户第一个空表位' })}
+      ${field({ label: '指定计量点（可选）', name: 'pointNo', placeholder: '如 340102000010-02', hint: '一户多表时填写；留空自动选空表位' })}
+      ${field({ label: '无空表位时自动新建', name: 'createPoint', type: 'select', options: [{ value: '1', label: '是，自动新增一个计量点' }, { value: '0', label: '否，提示我去户档新增' }] })}
       ${field({ label: '安装日期', name: 'installDate', type: 'date', value: meta.today })}
     `),
     footer: `<button class="btn" data-close-modal>取消</button><button class="btn primary" data-submit>保存</button>`,
@@ -128,8 +130,9 @@ async function openCreate(ctx) {
       root.querySelector('[data-submit]').onclick = async () => {
         try {
           const body = formData(root);
+          body.createPoint = body.createPoint === '1';
           const res = await post('/api/devices', body);
-          toast(`已新增电表 ${res.assetNo}`);
+          toast(`已新增电表 ${res.assetNo}${res.pointNo ? ` · 装入 ${res.pointNo}` : ''}`);
           close(); ctx.refresh();
         } catch (e) { toast(e.message, 'err'); }
       };

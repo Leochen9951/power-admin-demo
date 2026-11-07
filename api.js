@@ -324,7 +324,22 @@ R('GET', '/api/accounts/:id', ({ params }) => {
   const account = get(`${ACCOUNT_BASE} WHERE a.id=?`, id);
   if (!account) bad('用户不存在', 404);
 
-  const points = all('SELECT * FROM metering_points WHERE account_id=? ORDER BY id', id);
+  const points = all(
+    `SELECT p.*, t.name AS tariff_name FROM metering_points p
+     LEFT JOIN tariffs t ON t.id = p.tariff_id
+     WHERE p.account_id=? ORDER BY p.sort_no, p.id`, id
+  );
+  const lastRunPeriod = get('SELECT MAX(period) p FROM period_runs')?.p;
+  const curPeriod = periodOf(new Date());
+  if (points.length) {
+    const billed = lastRunPeriod ? B.pointUsageOfAccount(id, lastRunPeriod) : {};
+    const current = B.pointUsageOfAccount(id, curPeriod);
+    for (const pt of points) {
+      pt.usage = billed[pt.id]?.kwh ?? 0;
+      pt.current_usage = current[pt.id]?.kwh ?? 0;
+      pt.segment_count = get('SELECT COUNT(*) c FROM segments WHERE point_id=?', pt.id).c;
+    }
+  }
   const segments = all(
     `SELECT s.*, d.asset_no, d.model, d.vendor, d.imei, d.status AS device_status,
             d.last_seen_at, d.ratio AS device_ratio, d.phase
@@ -344,7 +359,10 @@ R('GET', '/api/accounts/:id', ({ params }) => {
   );
   const payments = all('SELECT * FROM payments WHERE account_id=? ORDER BY id DESC LIMIT 10', id);
 
-  return ok({ account, points, segments, bills, usage, adjustments, replacements, readings, payments });
+  return ok({
+    account, points, segments, bills, usage, adjustments, replacements, readings, payments,
+    lastPeriod: lastRunPeriod, currentPeriod: curPeriod,
+  });
 });
 
 R('POST', '/api/accounts', (ctx) => {
@@ -442,6 +460,66 @@ R('POST', '/api/accounts/:id/status', (ctx) => {
   run('UPDATE accounts SET status=?, close_date=?, updated_at=? WHERE id=?',
     status, status === 'closed' ? todayStr() : null, nowStr(), id);
   audit(ctx, '变更户状态', 'account', id, { status });
+  return ok({ success: true });
+});
+
+/* -------------------------- 计量点（一户多表） -------------------------- */
+
+R('POST', '/api/accounts/:id/points', (ctx) => {
+  const accId = Number(ctx.params.id);
+  const acc = get('SELECT * FROM accounts WHERE id=?', accId);
+  if (!acc) bad('用户不存在', 404);
+  const b = ctx.body || {};
+  const seq = (get('SELECT MAX(sort_no) m FROM metering_points WHERE account_id=?', accId)?.m || 0) + 1;
+  const pointNo = (b.pointNo || `${acc.account_no}-${String(seq).padStart(2, '0')}`).trim();
+  if (get('SELECT id FROM metering_points WHERE point_no=?', pointNo)) bad('计量点编号已存在');
+  const propType = b.propertyType || acc.property_type;
+  const tariffId = b.tariffId || get('SELECT id FROM tariffs WHERE property_type=? LIMIT 1', propType)?.id || acc.tariff_id;
+
+  const id = run(
+    `INSERT INTO metering_points (account_id, point_no, name, location, property_type, tariff_id,
+       is_billing, sort_no, remark, status, created_at)
+     VALUES (?,?,?,?,?,?,?,?,?, 'active', ?)`,
+    accId, pointNo, b.name || `计量点 ${seq}`, b.location || acc.address, propType, tariffId,
+    b.isBilling === false ? 0 : 1, seq, b.remark || null, nowStr()
+  ).lastId;
+
+  let deviceBound = null;
+  if (b.assetNo) {
+    const dev = get('SELECT * FROM devices WHERE asset_no=?', b.assetNo);
+    if (!dev) bad('电表资产编号不存在');
+    if (dev.status === 'in_service') bad('该电表已在运');
+    const startDate = b.startDate || todayStr();
+    run(`INSERT INTO segments (point_id, device_id, seq, start_date, start_reading, ratio, reason, status, created_at)
+         VALUES (?,?,1,?,?,?,'新装','active',?)`,
+      id, dev.id, startDate, Number(b.startReading) || 0, dev.ratio, nowStr());
+    run(`UPDATE devices SET status='in_service', installed_at=? WHERE id=?`, startDate, dev.id);
+    deviceBound = dev.asset_no;
+  }
+  audit(ctx, '新增计量点', 'point', id, { accountNo: acc.account_no, pointNo, deviceBound });
+  return ok({ id, pointNo, deviceBound });
+});
+
+R('PUT', '/api/points/:id', (ctx) => {
+  const id = Number(ctx.params.id);
+  const pt = get('SELECT * FROM metering_points WHERE id=?', id);
+  if (!pt) bad('计量点不存在', 404);
+  const b = ctx.body || {};
+  const map = {
+    name: 'name', location: 'location', propertyType: 'property_type', tariffId: 'tariff_id',
+    isBilling: 'is_billing', status: 'status', remark: 'remark',
+  };
+  const sets = [];
+  const args = [];
+  for (const [k, col] of Object.entries(map)) {
+    if (b[k] === undefined) continue;
+    sets.push(`${col}=?`);
+    args.push(k === 'isBilling' ? (b[k] ? 1 : 0) : nonEmpty(b[k]));
+  }
+  if (!sets.length) bad('没有需要更新的字段');
+  args.push(id);
+  run(`UPDATE metering_points SET ${sets.join(',')} WHERE id=?`, ...args);
+  audit(ctx, '修改计量点', 'point', id, b);
   return ok({ success: true });
 });
 
@@ -675,20 +753,47 @@ R('POST', '/api/devices', (ctx) => {
     b.manufactureDate || null, b.note || null, now
   ).lastId;
 
+  let boundPoint = null;
   if (b.accountNo) {
     const acc = get('SELECT * FROM accounts WHERE account_no=?', b.accountNo);
     if (!acc) bad('户号不存在');
-    const point = get('SELECT * FROM metering_points WHERE account_id=? ORDER BY id LIMIT 1', acc.id);
-    if (!point) bad('该户没有计量点');
-    const active = get('SELECT * FROM segments WHERE point_id=? AND status=\'active\'', point.id);
-    if (active) bad('该户已有在运电表，请通过换表工单更换');
+
+    let point = null;
+    if (b.pointNo) {
+      point = get('SELECT * FROM metering_points WHERE point_no=? AND account_id=?', b.pointNo, acc.id);
+      if (!point) bad('该户没有这个计量点');
+      const busy = get("SELECT id FROM segments WHERE point_id=? AND status='active'", point.id);
+      if (busy) bad('该计量点已有在运电表，请通过换表工单更换');
+    } else {
+      point = get(
+        `SELECT p.* FROM metering_points p
+         WHERE p.account_id=? AND NOT EXISTS
+           (SELECT 1 FROM segments s WHERE s.point_id=p.id AND s.status='active')
+         ORDER BY p.sort_no, p.id LIMIT 1`, acc.id
+      );
+    }
+
+    if (!point && b.createPoint) {
+      const seq = (get('SELECT MAX(sort_no) m FROM metering_points WHERE account_id=?', acc.id)?.m || 0) + 1;
+      const pid = run(
+        `INSERT INTO metering_points (account_id, point_no, name, location, property_type, tariff_id,
+           is_billing, sort_no, status, created_at)
+         VALUES (?,?,?,?,?,?,1,?, 'active', ?)`,
+        acc.id, `${acc.account_no}-${String(seq).padStart(2, '0')}`, b.pointName || `计量点 ${seq}`,
+        acc.address, acc.property_type, acc.tariff_id, seq, now
+      ).lastId;
+      point = get('SELECT * FROM metering_points WHERE id=?', pid);
+    }
+    if (!point) bad('该户所有表位都已装表，请先在户档里新增计量点');
+
     run(`INSERT INTO segments (point_id, device_id, seq, start_date, start_reading, ratio, reason, status, created_at)
          VALUES (?,?,1,?,?,?,'新装','active',?)`,
       point.id, id, b.installDate || todayStr(), Number(b.startReading) || 0, Number(b.ratio) || 1, now);
     run(`UPDATE devices SET status='in_service', installed_at=? WHERE id=?`, b.installDate || todayStr(), id);
+    boundPoint = point;
   }
-  audit(ctx, '新增电表', 'device', id, { assetNo: b.assetNo, bound: b.accountNo || null });
-  return ok({ id, assetNo: b.assetNo });
+  audit(ctx, '新增电表', 'device', id, { assetNo: b.assetNo, bound: b.accountNo || null, point: boundPoint?.point_no || null });
+  return ok({ id, assetNo: b.assetNo, pointNo: boundPoint?.point_no || null });
 });
 
 /* ------------------------------------------------------------------ */
@@ -715,8 +820,9 @@ R('GET', '/api/readings', ({ query }) => {
     WHERE ${whereSql}`;
   const total = get(`SELECT COUNT(*) c ${base}`, ...args).c;
   const items = all(
-    `SELECT r.*, a.account_no, a.customer_name, d.asset_no, s.seq AS seg_seq
-     ${base}
+    `SELECT r.*, a.account_no, a.customer_name, d.asset_no, s.seq AS seg_seq,
+            mp.name AS point_name, mp.point_no
+     ${base.replace('JOIN metering_points p ON p.id=r.point_id', 'JOIN metering_points p ON p.id=r.point_id LEFT JOIN metering_points mp ON mp.id=r.point_id')}
      ORDER BY r.read_at DESC, r.id DESC LIMIT ? OFFSET ?`,
     ...args, size, (page - 1) * size
   );
@@ -821,8 +927,14 @@ R('POST', '/api/replacements', (ctx) => {
   const b = ctx.body || {};
   const acc = get('SELECT * FROM accounts WHERE account_no=?', b.accountNo);
   if (!acc) bad('户号不存在');
-  const point = get('SELECT * FROM metering_points WHERE account_id=? ORDER BY id LIMIT 1', acc.id);
-  if (!point) bad('该户没有计量点');
+  const point = b.pointNo
+    ? get('SELECT * FROM metering_points WHERE account_id=? AND point_no=?', acc.id, b.pointNo)
+    : get(
+      `SELECT p.* FROM metering_points p
+       JOIN segments s ON s.point_id=p.id AND s.status='active'
+       WHERE p.account_id=? ORDER BY p.sort_no LIMIT 1`, acc.id
+    );
+  if (!point) bad('该户没有可报修的计量点');
   const seg = get("SELECT * FROM segments WHERE point_id=? AND status='active'", point.id);
   const seqNo = get('SELECT COUNT(*) c FROM replacements').c + 1;
   const orderNo = `WO${todayStr().replace(/-/g, '')}${String(seqNo).padStart(3, '0')}`;
