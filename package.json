@@ -1,6 +1,6 @@
 {
   "name": "power-admin",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
   "description": "物联网电表电力管理后台（演示版）",

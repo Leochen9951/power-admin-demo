@@ -483,6 +483,12 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 12.8px; }
 .axis-text { font-size: 10px; fill: #9aa9a1; }
 .grid-line { stroke: #eef2ef; stroke-width: 1; }
 
+/* 版本号 */
+.sidebar-foot .ver {
+  font-size: 10px; letter-spacing: .3px; color: #4f6f64;
+  text-align: center; padding: 2px 0 10px; margin-top: -2px;
+}
+
 /* 静态演示版横幅 */
 #staticBanner {
   position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%);

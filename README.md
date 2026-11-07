@@ -307,7 +307,9 @@ cloudflared tunnel --url http://localhost:4399   # 或 ngrok http 4399
 ## 两套在线演示（可同时存在）
 
 - 静态版（已上线）：<https://leochen9951.github.io/power-admin-demo/>
+- v1.0 归档（一户一表）：<https://leochen9951.github.io/power-admin-demo/v1/>
 - 完整版：按下面「完整版：Render」部署后获得地址
+- 版本变更记录：[CHANGELOG.md](CHANGELOG.md)；应用内「系统 → 更新日志」也有同一份内容
 
 | | 静态版（GitHub Pages） | 完整版（Render） |
 |---|---|---|

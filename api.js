@@ -104,7 +104,7 @@ const STATUS_NAMES = {
 R('GET', '/api/healthz', () => {
   const db = get('SELECT COUNT(*) c FROM accounts');
   return ok({
-    ok: true, service: 'power-admin', version: '1.0.0',
+    ok: true, service: 'power-admin', version: '1.1.0',
     accounts: db.c, uptime: Math.round(process.uptime()), now: nowStr(),
   });
 }, { auth: false });
