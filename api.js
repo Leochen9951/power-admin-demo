@@ -403,9 +403,11 @@ R('POST', '/api/accounts', (ctx) => {
     ).lastId;
 
     const pointId = run(
-      `INSERT INTO metering_points (account_id, point_no, name, location, status, created_at)
-       VALUES (?,?,?,?,?,?)`,
-      accId, `${accountNo}-01`, b.propertyType === '商业' ? '商铺总表' : '户内总表', addr, 'active', now
+      `INSERT INTO metering_points (account_id, point_no, name, location, property_type, tariff_id,
+         is_billing, sort_no, status, created_at)
+       VALUES (?,?,?,?,?,?,1,1,'active',?)`,
+      accId, `${accountNo}-01`, b.propertyType === '商业' ? '商铺总表' : '户内总表', addr,
+      b.propertyType || '居民', tariff, now
     ).lastId;
 
     if (b.assetNo) {
@@ -658,9 +660,11 @@ R('POST', '/api/accounts/import/commit', (ctx) => {
         addr, r.propertyType, tariff?.id || null, r.openDate, r.remark || null, now, now
       ).lastId;
       const pointId = run(
-        `INSERT INTO metering_points (account_id, point_no, name, location, status, created_at)
-         VALUES (?,?,?,?, 'active', ?)`,
-        accId, `${accountNo}-01`, r.propertyType === '商业' ? '商铺总表' : '户内总表', addr, now
+        `INSERT INTO metering_points (account_id, point_no, name, location, property_type, tariff_id,
+           is_billing, sort_no, status, created_at)
+         VALUES (?,?,?,?,?,?,1,1,'active',?)`,
+        accId, `${accountNo}-01`, r.propertyType === '商业' ? '商铺总表' : '户内总表', addr,
+        r.propertyType, get('SELECT id FROM tariffs WHERE property_type=? LIMIT 1', r.propertyType)?.id || null, now
       ).lastId;
       if (r.assetNo) {
         const dev = get('SELECT * FROM devices WHERE asset_no=?', r.assetNo);

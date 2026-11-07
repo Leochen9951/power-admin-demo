@@ -7,10 +7,10 @@ node scripts/export-static.mjs
 
 cd static-site
 rm -rf .git
+trap 'rm -rf .git' EXIT
 git init -q
 git add -A
 git -c user.name="power-admin" -c user.email="demo@local" commit -qm "deploy: $(date '+%Y-%m-%d %H:%M')"
 REMOTE="$(git -C .. remote get-url origin)"
 git push -f "$REMOTE" HEAD:gh-pages
-rm -rf .git
 echo "已发布到 ${REMOTE%.git} 的 gh-pages 分支"
