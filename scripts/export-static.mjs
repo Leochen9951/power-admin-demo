@@ -219,7 +219,11 @@ const snapshot = {
 
 /* ------------------------------ 产物 ------------------------------ */
 
-fs.rmSync(OUT, { recursive: true, force: true });
+fs.mkdirSync(OUT, { recursive: true });
+// 只清理本次构建的产物，保留 v1/ 等历史版本归档
+for (const f of ['index.html', 'pay.html', 'app.css', 'js', 'data', '.nojekyll']) {
+  fs.rmSync(path.join(OUT, f), { recursive: true, force: true });
+}
 fs.mkdirSync(path.join(OUT, 'js'), { recursive: true });
 fs.mkdirSync(path.join(OUT, 'data'), { recursive: true });
 

@@ -342,6 +342,24 @@ cd static-site && python3 -m http.server 4402   # 本地预览 http://localhost:
 
 > 静态版的数据是构建那一刻的快照。想更新演示数据，改完重新触发一次 workflow 即可。
 
+### 历史版本归档
+
+`v1.0.0`（一户一表）的静态快照长期保留在 `/v1/`，与最新版共用同一个 Pages 站点，方便随时对照：
+
+- 归档版顶部有「v1.0 归档版本」提示条，可一键返回最新版
+- 最新版的「系统 → 更新日志」页也有入口
+- `scripts/export-static.mjs` 只清理本次构建产物，**不会删除 `v1/`**
+- 需要下线归档时，删除 `static-site/v1/` 后重新发布即可
+
+重建归档（需要本地有 `v1.0.0` tag）：
+
+```bash
+git archive v1.0.0 | tar -x -C /tmp/power-v1
+cd /tmp/power-v1 && DB_FILE=/tmp/power-v1/data/app.db node lib/seed.js
+node scripts/export-static.mjs
+cp -r static-site /path/to/power-admin/static-site/v1
+```
+
 ### 完整版：Render
 
 1. 仓库推到 GitHub；
