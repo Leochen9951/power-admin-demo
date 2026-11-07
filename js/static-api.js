@@ -223,13 +223,23 @@
   function accountDetail(S, id) {
     const account = S.accounts.find((a) => a.id === id);
     if (!account) throw new Error('用户不存在');
-    const points = S.points.filter((p) => p.account_id === id);
+    const lastPeriod = S.lastPeriod;
+    const curPeriod = S.meta.today.slice(0, 7);
+    const points = S.points.filter((p) => p.account_id === id)
+      .sort((a, b) => (a.sort_no || 1) - (b.sort_no || 1))
+      .map((p) => ({
+        ...p,
+        tariff_name: (S.meta.tariffs.find((t) => t.id === p.tariff_id) || {}).name || '',
+        usage: ((S.pointUsage || {})[p.id] || {})[lastPeriod] || 0,
+        current_usage: ((S.pointUsage || {})[p.id] || {})[curPeriod] || 0,
+      }));
     const pids = points.map((p) => p.id);
     const segments = S.segments.filter((s) => pids.includes(s.point_id)).sort((a, b) => b.seq - a.seq);
     const bills = S.bills.filter((b) => b.account_id === id);
     const readings = S.readings.filter((r) => pids.includes(r.point_id)).slice(0, 30);
     return {
       account, points, segments, bills,
+      lastPeriod, currentPeriod: curPeriod,
       usage: S.usage[id] || {},
       adjustments: S.adjustments.filter((a) => a.account_id === id),
       replacements: S.replacements.filter((r) => r.account_id === id),

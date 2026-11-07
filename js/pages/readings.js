@@ -65,7 +65,7 @@ export default async function render(view, ctx) {
         columns: [
           { label: '抄表时间', render: (r) => `<span class="mono">${fmt.dt(r.read_at)}</span>` },
           { label: '用户', render: (r) => `<div class="strong">${esc(r.customer_name)}</div><div class="small muted mono">${r.account_no}</div>` },
-          { label: '表号', render: (r) => `<span class="mono small">${esc(r.asset_no)}</span><div class="small muted">第 ${r.seg_seq} 安装段</div>` },
+          { label: '表号 / 计量点', render: (r) => `<span class="mono small">${esc(r.asset_no)}</span><div class="small muted">${esc(r.point_name || '计量点')} · 第 ${r.seg_seq} 段</div>` },
           { label: '示数', align: 'right', render: (r) => `<b class="mono">${fmt.kwh(r.reading)}</b>` },
           { label: '来源', render: (r) => p.source(r.source) },
           { label: '质量', render: (r) => p.quality(r.quality) },

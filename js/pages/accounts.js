@@ -56,7 +56,7 @@ export default async function render(view, ctx) {
           { label: '联系方式', render: (r) => `<span class="mono">${esc(r.phone || '—')}</span>` },
           { label: '地址', render: (r) => `<div style="max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.address || '—')}</div>` },
           { label: '性质', render: (r) => `<span class="tag">${r.property_type}</span>` },
-          { label: '电表', render: (r) => `<div class="mono small">${esc(r.asset_no || '未装表')}</div><div>${p.device(r.device_status)}</div>` },
+          { label: '电表', render: (r) => `<div class="mono small">${esc(r.asset_no || '未装表')}${r.points_cnt > 1 ? ` <span class="tag">共 ${r.points_cnt} 表</span>` : ''}</div><div>${p.device(r.device_status)}</div>` },
           { label: '最近账期', render: (r) => r.last_period
             ? `<div class="mono">${fmt.period(r.last_period)}</div><div>${p.bill(r.last_status)} <span class="muted small">¥${fmt.money(r.last_amount)}</span></div>`
             : '<span class="muted">—</span>' },
@@ -108,6 +108,7 @@ export async function openDetail(id, ctx) {
     headExtra: `<div class="row wrap gap-8 mt-12">
         ${p.account(a.status)}
         ${p.device(a.device_status)}
+        ${a.points_cnt > 1 ? `<span class="pill info">共 ${a.points_cnt} 块表</span>` : ''}
         ${Number(a.outstanding) > 0 ? `<span class="pill danger">欠费 ¥${fmt.money(a.outstanding)}</span>` : '<span class="pill ok">无欠费</span>'}
         <span class="tag">${esc(a.phone || '')}</span>
         <span class="spacer f1"></span>
@@ -130,6 +131,8 @@ export async function openDetail(id, ctx) {
         };
       });
       root.querySelector('[data-edit]').onclick = () => openEdit(a, ctx, () => { drawer.close(); openDetail(id, ctx); });
+      const addBtn = root.querySelector('[data-add-point]');
+      if (addBtn) addBtn.onclick = () => openAddPoint(a, ctx, () => { drawer.close(); openDetail(id, ctx); });
       root.querySelectorAll('[data-bill]').forEach((el) => el.addEventListener('click', async (e) => {
         e.stopPropagation();
         const { bill } = await get(`/api/bills/${el.dataset.bill}`);
@@ -169,15 +172,34 @@ function maskId(v) {
 function meterPanel(data) {
   const segs = data.segments || [];
   const points = data.points || [];
-  if (!segs.length) return '<div class="empty">尚未安装电表</div>';
-  return points.map((pt) => {
+  const billingCount = points.filter((p) => Number(p.is_billing) !== 0).length;
+
+  const head = `<div class="row between" style="margin-bottom:12px">
+      <div class="small muted">共 ${points.length} 个计量点，其中 ${billingCount} 块参与计费${
+        points.length > 1 ? '；同电价多表合并计算阶梯，不同电价分别列示' : ''}</div>
+      <button class="btn sm" data-add-point>${icon('plus')}新增计量点</button>
+    </div>`;
+
+  if (!points.length) return `${head}<div class="empty">尚未建立计量点</div>`;
+
+  return head + points.map((pt) => {
     const list = segs.filter((s) => s.point_id === pt.id);
+    const billing = Number(pt.is_billing) !== 0;
     return `<div class="card" style="box-shadow:none;margin-bottom:14px">
-      <div class="card-head"><div><h3>${esc(pt.name || '计量点')}</h3>
-        <div class="sub mono">${pt.point_no} · ${esc(pt.location || '')}</div></div>
-        <span class="pill ${pt.status === 'active' ? 'ok' : 'gray'}">${list.length} 段安装记录</span></div>
+      <div class="card-head">
+        <div>
+          <h3>${esc(pt.name || '计量点')}
+            <span class="pill ${billing ? 'info' : 'gray'} nodot" style="margin-left:6px">${billing ? '计费' : '不计费'}</span>
+          </h3>
+          <div class="sub mono">${pt.point_no} · ${esc(pt.location || '')}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:17px;font-weight:650;font-variant-numeric:tabular-nums">${fmt.kwh(pt.usage || 0)} <span class="small muted">kWh</span></div>
+          <div class="small muted">上期用电 · ${esc(pt.tariff_name || pt.property_type || '')}</div>
+        </div>
+      </div>
       <div class="card-body">
-        <div class="timeline">
+        ${list.length ? `<div class="timeline">
           ${list.slice().reverse().map((s) => `
             <div class="tl-item ${s.status === 'active' ? '' : 'gray'}">
               <b>${s.status === 'active' ? '在运' : '已拆除'} · ${esc(s.asset_no)}</b>
@@ -190,7 +212,7 @@ function meterPanel(data) {
                 <span class="tag">IMEI ${esc(s.imei || '—')}</span>
               </div>
             </div>`).join('')}
-        </div>
+        </div>` : '<div class="empty" style="padding:18px">该计量点尚未装表</div>'}
         ${list.length > 1 ? `<div class="notice warn">${icon('alert')}<div><b>跨段不计电量：</b>换表时旧表止码与新表起码之间不做差值，只累计各段内部增量，因此换表不会产生虚增电量。</div></div>` : ''}
       </div>
     </div>`;
@@ -266,13 +288,35 @@ export function openBillModal(bill) {
         <table class="tbl">
           <thead><tr><th>项目</th><th>计算方式</th><th class="num">金额</th></tr></thead>
           <tbody>
-            ${(calc.tiers || []).map((t, i) => `<tr>
-              <td>电度电费${(calc.tiers || []).length > 1 ? `（第 ${i + 1} 档）` : ''}</td>
-              <td class="small muted">${t.kwh} kWh × ¥${t.price}</td>
-              <td class="num">¥${fmt.money(t.amount)}</td></tr>`).join('')}
+            ${(() => {
+              const lines = (calc.lines || []).filter((l) => l.points && l.points.length);
+              if (!lines.length) {
+                return (calc.tiers || []).map((t, i) => `<tr>
+                  <td>电度电费${(calc.tiers || []).length > 1 ? `（第 ${i + 1} 档）` : ''}</td>
+                  <td class="small muted">${t.kwh} kWh × ¥${t.price}</td>
+                  <td class="num">¥${fmt.money(t.amount)}</td></tr>`).join('');
+              }
+              return lines.map((l, li) => {
+                const pts = l.points.map((p) => esc(p.name)).join(' + ');
+                const head = `<tr style="${lines.length > 1 ? 'background:#fafcfb' : ''}">
+                  <td>${lines.length > 1 ? `<b>${pts}</b> <span class="small muted">${esc(l.tariffName)}</span>` : '电度电费'}</td>
+                  <td class="small muted">${fmt.kwh(l.kwh)} kWh</td>
+                  <td class="num">${lines.length > 1 ? `<b>¥${fmt.money(l.amount)}</b>` : ''}</td></tr>`;
+                const tiers = (l.tiers || []).map((t, i) => `<tr>
+                  <td class="small muted" style="padding-left:${lines.length > 1 ? 26 : 0}px">第 ${i + 1} 档 ${t.from}–${t.to === '∞' ? '以上' : t.to}</td>
+                  <td class="small muted">${t.kwh} × ¥${t.price}</td>
+                  <td class="num small">¥${fmt.money(t.amount)}</td></tr>`).join('');
+                if (lines.length === 1 && (l.tiers || []).length === 1) {
+                  const t = l.tiers[0];
+                  return `<tr><td>电度电费</td><td class="small muted">${fmt.kwh(l.kwh)} kWh × ¥${t.price}</td>
+                    <td class="num">¥${fmt.money(t.amount)}</td></tr>`;
+                }
+                return head + tiers;
+              }).join('');
+            })()}
             ${calc.baseFee ? `<tr><td>基本电费</td><td class="small muted">固定</td><td class="num">¥${fmt.money(calc.baseFee)}</td></tr>` : ''}
             ${Number(bill.adjustment) ? `<tr><td>调整项</td><td class="small muted">追补 / 退补</td><td class="num">¥${fmt.money(bill.adjustment)}</td></tr>` : ''}
-            <tr><td class="strong">合计</td><td class="small muted">${esc(calc.tariff || '')}${calc.estimatedDays ? ` · 含 ${calc.estimatedDays} 条估抄记录` : ''}</td>
+            <tr><td class="strong">合计</td><td class="small muted">${esc(calc.tariff || '')}${calc.points > 1 ? ` · ${calc.points} 块表` : ''}${calc.estimatedDays ? ` · 含 ${calc.estimatedDays} 条估抄记录` : ''}${Number(calc.excludedKwh) ? ` · 另有 ${fmt.kwh(calc.excludedKwh)} kWh 不计费分表` : ''}</td>
               <td class="num strong">¥${fmt.money(bill.total_amount)}</td></tr>
           </tbody>
         </table>
@@ -371,6 +415,53 @@ function openEdit(a, ctx, done) {
     },
   });
   return m;
+}
+
+/* ------------------------------------------------------------------ */
+/* 新增计量点                                                          */
+/* ------------------------------------------------------------------ */
+
+async function openAddPoint(acc, ctx, done) {
+  const meta = await get('/api/meta');
+  let stock = { items: [] };
+  try { stock = await get('/api/devices?status=in_stock&size=100'); } catch { /* ignore */ }
+
+  openModal({
+    title: '新增计量点',
+    subtitle: `${acc.account_no} · ${esc(acc.customer_name)}`,
+    size: 'wide',
+    body: `
+      <div class="notice">${icon('check')}<div>
+        一户可以有多个计量点（住宅 + 车库、住宅 + 商铺、多层分表等）。<b>同电价</b>的多块表合并计算阶梯，<b>不同电价</b>分别列示在一张账单里；
+        「不计费」的计量点只留档，不进入账单。
+      </div></div>
+      <div class="mt-16">
+      ${formGrid(`
+        ${field({ label: '计量点名称', name: 'name', placeholder: '如：车库表、二层经营表', required: true })}
+        ${field({ label: '计量点编号', name: 'pointNo', placeholder: '留空自动生成', hint: '格式：户号-序号' })}
+        ${field({ label: '用电性质', name: 'propertyType', type: 'select', value: acc.property_type, options: ['居民', '商业', '农业'].map((v) => ({ value: v, label: v })) })}
+        ${field({ label: '电价', name: 'tariffId', type: 'select', value: acc.tariff_id, options: meta.tariffs.map((t) => ({ value: t.id, label: t.name })) })}
+        ${field({ label: '是否参与计费', name: 'isBilling', type: 'select', value: '1', options: [{ value: '1', label: '参与计费' }, { value: '0', label: '不计费（仅记录）' }] })}
+        ${field({ label: '安装电表', name: 'assetNo', type: 'select', options: [{ value: '', label: '暂不装表' }, ...stock.items.map((d) => ({ value: d.asset_no, label: `${d.asset_no} · ${d.vendor || ''} ${d.model || ''}` }))] })}
+        ${field({ label: '装表起码', name: 'startReading', type: 'number', value: '0' })}
+        ${field({ label: '装表日期', name: 'startDate', type: 'date', value: meta.today })}
+      `)}</div>`,
+    footer: `<button class="btn" data-close-modal>取消</button><button class="btn primary" data-submit>创建计量点</button>`,
+    onMount(root, close) {
+      root.querySelector('[data-submit]').onclick = async () => {
+        const body = formData(root);
+        if (!body.name) return toast('请填写计量点名称', 'err');
+        body.isBilling = body.isBilling === '1';
+        body.tariffId = body.tariffId ? Number(body.tariffId) : null;
+        try {
+          const res = await post(`/api/accounts/${acc.id}/points`, body);
+          toast(`已新增计量点 ${res.pointNo}`);
+          close();
+          done();
+        } catch (e) { toast(e.message, 'err'); }
+      };
+    },
+  });
 }
 
 /* ------------------------------------------------------------------ */
